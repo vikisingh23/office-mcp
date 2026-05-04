@@ -1,0 +1,44 @@
+{
+  "name": "@neuraforge/office-mcp",
+  "version": "1.0.1",
+  "description": "MCP server for creating, reading, and editing PowerPoint, Word, Excel, and CSV documents. 32 tools.",
+  "type": "module",
+  "bin": "index.js",
+  "main": "src/pptx.js",
+  "scripts": {
+    "start": "node bin/office-mcp.js",
+    "pptx": "node src/pptx.js",
+    "docx": "node src/docx.js",
+    "xlsx": "node src/xlsx.js"
+  },
+  "keywords": [
+    "mcp",
+    "office",
+    "pptx",
+    "docx",
+    "xlsx",
+    "csv",
+    "powerpoint",
+    "word",
+    "excel",
+    "ai-agents",
+    "claude-code",
+    "neuraforge"
+  ],
+  "author": "Vikas Singh (https://github.com/vikisingh23)",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vikisingh23/office-mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "pptxgenjs": "^3.12.0",
+    "jszip": "^3.10.0",
+    "docx": "^8.0.0",
+    "mammoth": "^1.6.0",
+    "xlsx": "^0.18.5",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0"
+  }
+}
