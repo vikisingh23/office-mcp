@@ -285,7 +285,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const sections = args.sections.map(buildSection);
         const doc = new Document({
           title: args.title,
-          creator: args.author || 'AMC OneView',
+          creator: args.author || '',
           numbering: {
             config: [{ reference: 'default-numbering', levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: AlignmentType.LEFT }] }],
           },
@@ -341,7 +341,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const allSections = [existingSection, ...args.sections].map(buildSection);
 
         const doc = new Document({
-          creator: 'AMC OneView',
+          creator: args.author || '',
           numbering: {
             config: [{ reference: 'default-numbering', levels: [{ level: 0, format: 'decimal', text: '%1.', alignment: AlignmentType.LEFT }] }],
           },

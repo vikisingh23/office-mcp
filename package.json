@@ -1,12 +1,12 @@
 {
   "name": "@neuraforge/office-mcp",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "MCP server for creating, reading, and editing PowerPoint, Word, Excel, and CSV documents. 32 tools.",
   "type": "module",
   "bin": "index.js",
   "main": "src/pptx.js",
   "scripts": {
-    "start": "node bin/office-mcp.js",
+    "start": "node index.js",
     "pptx": "node src/pptx.js",
     "docx": "node src/docx.js",
     "xlsx": "node src/xlsx.js"

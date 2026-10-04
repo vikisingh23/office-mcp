@@ -4,6 +4,25 @@ MCP server for creating, reading, and editing Office documents. **32 tools** for
 
 Works with Claude Code, Cursor, Gemini CLI, Kiro, and any MCP client.
 
+## Requirements
+
+- Node.js 18+
+- **Python 3.8+ with `python-pptx` and `python-docx`** — required for every tool
+  tagged "Uses python-pptx" / "Uses python-docx" below (in-place edits that
+  preserve existing formatting: find/replace, insert, delete, duplicate,
+  table-cell updates, structure reads). The PowerPoint/Word *creation* tools
+  (`create_presentation`, `create_document`, etc.) are pure JS and don't need
+  Python.
+
+  ```bash
+  pip install -r requirements.txt
+  # or: pip install python-pptx python-docx
+  ```
+
+  If Python or these packages aren't available, the Python-backed tools
+  return a clear `{"error": "Missing Python dependency: ..."}` instead of
+  silently failing.
+
 ## Install
 
 ```json
@@ -31,16 +50,16 @@ npx @neuraforge/office-mcp --xlsx   # Excel/CSV only
 | `create_presentation` | Create PPTX from structured slide data |
 | `read_presentation` | Extract text and structure |
 | `list_slides` | Quick summary of all slides |
-| `add_slides` | Append slides to existing PPTX |
-| `add_slide_to_presentation` | Add single slide with layout |
-| `delete_slides` | Delete slides by number |
-| `delete_slide_from_presentation` | Delete single slide |
-| `modify_slide` | Replace slide content |
-| `modify_slide_text_in_presentation` | Find/replace text on slide |
-| `replace_text_in_presentation` | Find/replace across all slides |
-| `update_table_cell_in_presentation` | Update specific table cell |
-| `duplicate_slide_in_presentation` | Deep copy a slide |
-| `read_presentation_structure` | Detailed shape/text/table info |
+| `add_slides` | Append slides to existing PPTX, preserving existing slides (uses python-pptx) |
+| `add_slide_to_presentation` | Add single slide with layout (uses python-pptx) |
+| `delete_slides` | Delete slides by number (uses python-pptx) |
+| `delete_slide_from_presentation` | Delete single slide (uses python-pptx) |
+| `modify_slide` | Replace slide content (uses python-pptx) |
+| `modify_slide_text_in_presentation` | Find/replace text on slide (uses python-pptx) |
+| `replace_text_in_presentation` | Find/replace across all slides (uses python-pptx) |
+| `update_table_cell_in_presentation` | Update specific table cell (uses python-pptx) |
+| `duplicate_slide_in_presentation` | Deep copy a slide (uses python-pptx) |
+| `read_presentation_structure` | Detailed shape/text/table info (uses python-pptx) |
 
 ### Word (9 tools)
 | Tool | Description |
@@ -49,11 +68,11 @@ npx @neuraforge/office-mcp --xlsx   # Excel/CSV only
 | `read_document` | Extract text and HTML |
 | `append_to_document` | Add sections to existing document |
 | `document_to_text` | Plain text extraction |
-| `read_document_structure` | Detailed paragraph/style info |
-| `replace_text_in_document` | Find/replace preserving formatting |
-| `insert_after_text` | Insert content after specific text |
-| `append_table_to_document` | Add table to existing document |
-| `delete_paragraph_from_document` | Remove paragraphs by text match |
+| `read_document_structure` | Detailed paragraph/style info (uses python-docx) |
+| `replace_text_in_document` | Find/replace preserving formatting (uses python-docx) |
+| `insert_after_text` | Insert content after specific text (uses python-docx) |
+| `append_table_to_document` | Add table to existing document (uses python-docx) |
+| `delete_paragraph_from_document` | Remove paragraphs by text match (uses python-docx) |
 
 ### Excel/CSV (10 tools)
 | Tool | Description |

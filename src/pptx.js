@@ -62,15 +62,19 @@ async function readPptx(filePath) {
     });
   }
 
-  // Read slide dimensions from presentation.xml
+  // Read slide dimensions from the <p:sldSz cx="..." cy="..."/> element specifically
+  // (not any cx/cy pair in the file — other elements like <a:ext> use the same
+  // attribute names) and map them by name, not by position, since cx/cy can
+  // appear in either order.
   let width = 10, height = 5.625;
   if (zip.files['ppt/presentation.xml']) {
     const presXml = await zip.files['ppt/presentation.xml'].async('text');
-    const szMatch = presXml.match(/cy="(\d+)".*?cx="(\d+)"/s) || presXml.match(/cx="(\d+)".*?cy="(\d+)"/s);
-    if (szMatch) {
-      // EMU to inches
-      width = parseInt(szMatch[1]) / 914400;
-      height = parseInt(szMatch[2]) / 914400;
+    const sldSzMatch = presXml.match(/<p:sldSz\b[^/]*\/>/);
+    if (sldSzMatch) {
+      const cx = sldSzMatch[0].match(/cx="(\d+)"/);
+      const cy = sldSzMatch[0].match(/cy="(\d+)"/);
+      if (cx) width = parseInt(cx[1]) / 914400;
+      if (cy) height = parseInt(cy[1]) / 914400;
     }
   }
 
@@ -191,7 +195,7 @@ function applySlideContent(slide, content, pptx) {
 async function createPptxFromSlides(slides, opts = {}) {
   const pptx = new PptxGenJS();
   pptx.title = opts.title || 'Presentation';
-  pptx.author = opts.author || 'AMC OneView';
+  pptx.author = opts.author || '';
   if (opts.layout) pptx.layout = opts.layout;
 
   for (const content of slides) {
@@ -253,7 +257,7 @@ const TOOLS = [
   },
   {
     name: 'add_slides',
-    description: 'Add new slides to an existing PPTX. Reads the file, appends slides, writes back.',
+    description: 'Append new slides to an existing PPTX via python-pptx. Existing slides (formatting, images, tables, shapes) are left untouched.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -270,7 +274,7 @@ const TOOLS = [
   },
   {
     name: 'delete_slides',
-    description: 'Delete slides by index (1-based) from a PPTX. Rebuilds the presentation without those slides.',
+    description: 'Delete slides by index (1-based) from a PPTX via python-pptx. Remaining slides keep their original formatting, images, tables, and shapes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -287,7 +291,7 @@ const TOOLS = [
   },
   {
     name: 'modify_slide',
-    description: 'Replace content of a specific slide (by index) in an existing PPTX. Rebuilds the presentation with the updated slide.',
+    description: 'Replace content of a specific slide (by index) in an existing PPTX via python-pptx. Every other slide keeps its original formatting, images, tables, and shapes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -437,57 +441,51 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'add_slides': {
-        // Read existing, extract text per slide, rebuild with new slides appended
+        // Appends via python-pptx (add_rich_slide) so every existing slide's
+        // formatting, images, tables, and shapes are left untouched — the
+        // previous implementation flattened the whole deck to plain text and
+        // rebuilt it from scratch, silently destroying all of that.
         const fp = path.resolve(args.filePath);
         if (!fs.existsSync(fp)) return { content: [{ type: 'text', text: JSON.stringify({ error: `File not found: ${fp}` }) }] };
 
-        const existing = await readPptx(fp);
-        // Rebuild: existing slides as text-only + new slides
-        const rebuiltSlides = existing.slides.map(s => ({
-          title: s.texts[0] || '',
-          body: s.texts.slice(1),
-        }));
-        const allSlides = [...rebuiltSlides, ...args.slides];
-        const pptx = await createPptxFromSlides(allSlides, { title: 'Updated Presentation' });
         const outPath = path.resolve(args.outputPath || args.filePath);
-        await pptx.writeFile({ fileName: outPath });
-        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, previousSlides: existing.slideCount, addedSlides: args.slides.length, totalSlides: allSlides.length }) }] };
+        let currentSrc = fp;
+        let lastResult = null;
+        for (const slideContent of args.slides) {
+          lastResult = callBridge('add_rich_slide', { path: currentSrc, output: outPath, content: slideContent });
+          currentSrc = outPath;
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, addedSlides: args.slides.length, totalSlides: lastResult?.slideCount }) }] };
       }
 
       case 'delete_slides': {
+        // Deletes via python-pptx, highest slide number first so removing one
+        // doesn't shift the indices of the others still queued for deletion.
         const fp = path.resolve(args.filePath);
         if (!fs.existsSync(fp)) return { content: [{ type: 'text', text: JSON.stringify({ error: `File not found: ${fp}` }) }] };
 
-        const existing = await readPptx(fp);
-        const toDelete = new Set(args.slideNumbers);
-        const keptSlides = existing.slides
-          .filter(s => !toDelete.has(s.slideNumber))
-          .map(s => ({ title: s.texts[0] || '', body: s.texts.slice(1) }));
-
-        const pptx = await createPptxFromSlides(keptSlides, { title: 'Updated Presentation' });
         const outPath = path.resolve(args.outputPath || args.filePath);
-        await pptx.writeFile({ fileName: outPath });
-        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, deletedSlides: args.slideNumbers, remainingSlides: keptSlides.length }) }] };
+        const descending = [...args.slideNumbers].sort((a, b) => b - a);
+        let currentSrc = fp;
+        let lastResult = null;
+        for (const slideNumber of descending) {
+          lastResult = callBridge('delete_slide', { path: currentSrc, output: outPath, slideNumber });
+          currentSrc = outPath;
+        }
+        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, deletedSlides: args.slideNumbers, remainingSlides: lastResult?.slideCount }) }] };
       }
 
       case 'modify_slide': {
+        // Replaces one slide's content in place via python-pptx — every other
+        // slide is untouched (previously the whole deck was flattened to text
+        // and rebuilt, destroying formatting on every slide, not just this one).
         const fp = path.resolve(args.filePath);
         if (!fs.existsSync(fp)) return { content: [{ type: 'text', text: JSON.stringify({ error: `File not found: ${fp}` }) }] };
 
-        const existing = await readPptx(fp);
-        if (args.slideNumber < 1 || args.slideNumber > existing.slideCount) {
-          return { content: [{ type: 'text', text: JSON.stringify({ error: `Slide ${args.slideNumber} out of range (1-${existing.slideCount})` }) }] };
-        }
-
-        const rebuiltSlides = existing.slides.map(s => {
-          if (s.slideNumber === args.slideNumber) return args.content;
-          return { title: s.texts[0] || '', body: s.texts.slice(1) };
-        });
-
-        const pptx = await createPptxFromSlides(rebuiltSlides, { title: 'Updated Presentation' });
         const outPath = path.resolve(args.outputPath || args.filePath);
-        await pptx.writeFile({ fileName: outPath });
-        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, modifiedSlide: args.slideNumber, totalSlides: rebuiltSlides.length }) }] };
+        const result = callBridge('replace_slide_content', { path: fp, output: outPath, slideNumber: args.slideNumber, content: args.content });
+        if (result.error) return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+        return { content: [{ type: 'text', text: JSON.stringify({ success: true, filePath: outPath, modifiedSlide: args.slideNumber, totalSlides: result.slideCount }) }] };
       }
 
       // === python-pptx powered tools (preserve formatting) ===
